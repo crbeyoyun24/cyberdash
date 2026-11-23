@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Dash - Neon Kaçış Oyunu</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        body {
+            background-color: #050811;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .reklam-kutusu {
+            width: 100%;
+            max-width: 728px;
+            min-height: 60px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px dashed #38bdf8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            z-index: 5;
+        }
+        .oyun-alani {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            border: 2px solid #00f2fe;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 242, 254, 0.25);
+            max-width: 95vw;
+            max-height: 65vh;
+        }
+        .skor-paneli {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 8px 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00f2fe;
+        }
+        .baslat-ekrani {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(5, 8, 17, 0.92);
+            padding: 25px 35px;
+            border-radius: 16px;
+            border: 1px solid #00f2fe;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 242, 254, 0.4);
+        }
+        .baslat-ekrani h1 {
+            font-size: 26px;
+            background: linear-gradient(90deg, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .baslat-ekrani p { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+        button {
+            background: linear-gradient(90deg, #00f2fe, #4facfe);
+            color: #050811;
+            border: none;
+            padding: 12px 28px;
+            font-size: 16px;
+            font-weight: 800;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="reklam-kutusu" id="ustReklam">
+        [ ÜST REKLAM ALANI - A-ADS KODU BURAYA YAPIŞTIRILACAK ]
+    </div>
+
+    <div class="oyun-alani">
+        <div class="skor-paneli">
+            <span>SKOR: <span id="skor">0</span></span>
+            <span>REKOR: <span id="rekor">0</span></span>
+        </div>
+        <canvas id="oyunCanvas" width="400" height="500"></canvas>
+        
+        <div class="baslat-ekrani" id="baslatEkrani">
+            <h1>CYBER DASH</h1>
+            <p>Kırmızı lazerlerden kaç, sarı küreleri topla!<br>(Yön Tuşları veya Ekrana Dokun)</p>
+            <button onclick="oyunuBaslat()">OYNA</button>
+        </div>
+    </div>
+
+    <div class="reklam-kutusu" id="altReklam">
+        [ ALT REKLAM ALANI - A-ADS KODU BURAYA YAPIŞTIRILACAK ]
+    </div>
+
+<script>
+    const canvas = document.getElementById("oyunCanvas");
+    const ctx = canvas.getContext("2d");
+    const baslatEkrani = document.getElementById("baslatEkrani");
+    const skorEl = document.getElementById("skor");
+    const rekorEl = document.getElementById("rekor");
+
+    let rekor = localStorage.getItem("cyberDashRekor") || 0;
+    rekorEl.innerText = rekor;
+
+    let oyunAktif = false;
+    let skor = 0;
+    let hiz = 2.2; // Başlangıç hızı yavaşlatıldı
+    let oyuncu = { x: 182, y: 425, w: 34, h: 34, renk: "#00f2fe" };
+    let engeller = [];
+    let oduller = [];
+
+    window.addEventListener("keydown", e => {
+        if (!oyunAktif) return;
+        if (e.key === "ArrowLeft" || e.key === "a") oyuncu.x = Math.max(10, oyuncu.x - 32);
+        if (e.key === "ArrowRight" || e.key === "d") oyuncu.x = Math.min(canvas.width - oyuncu.w - 10, oyuncu.x + 32);
+    });
+
+    canvas.addEventListener("touchstart", e => {
+        if (!oyunAktif) return;
+        let dokunusX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+        if (dokunusX < canvas.width / 2) oyuncu.x = Math.max(10, oyuncu.x - 40);
+        else oyuncu.x = Math.min(canvas.width - oyuncu.w - 10, oyuncu.x + 40);
+    });
+
+    canvas.addEventListener("mousedown", e => {
+        if (!oyunAktif) return;
+        let tikX = e.clientX - canvas.getBoundingClientRect().left;
+        if (tikX < canvas.width / 2) oyuncu.x = Math.max(10, oyuncu.x - 40);
+        else oyuncu.x = Math.min(canvas.width - oyuncu.w - 10, oyuncu.x + 40);
+    });
+
+    function oyunuBaslat() {
+        oyunAktif = true;
+        skor = 0;
+        hiz = 2.2;
+        engeller = [];
+        oduller = [];
+        oyuncu.x = 182;
+        skorEl.innerText = "0";
+        baslatEkrani.style.display = "none";
+        dongu();
+    }
+
+    function oyunBitti() {
+        oyunAktif = false;
+        if (skor > rekor) {
+            rekor = skor;
+            localStorage.setItem("cyberDashRekor", rekor);
+            rekorEl.innerText = rekor;
+        }
+        baslatEkrani.innerHTML = `
+            <h1 style="color:#ff0055;-webkit-text-fill-color:#ff0055;">YANDIN!</h1>
+            <p>Skorun: <strong>${skor}</strong> | En Yüksek Rekor: <strong>${rekor}</strong></p>
+            <button onclick="oyunuBaslat()">TEKRAR OYNA</button>
+        `;
+        baslatEkrani.style.display = "block";
+    }
+
+    function dongu() {
+        if (!oyunAktif) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = oyuncu.renk;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = oyuncu.renk;
+        ctx.fillRect(oyuncu.x, oyuncu.y, oyuncu.w, oyuncu.h);
+
+        // Engel sıklığı azaltıldı
+        if (Math.random() < 0.024) {
+            engeller.push({ x: Math.random() * (canvas.width - 45), y: -30, w: 45, h: 14 });
+        }
+        if (Math.random() < 0.02) {
+            oduller.push({ x: Math.random() * (canvas.width - 20) + 10, y: -20, r: 9 });
+        }
+
+        for (let i = engeller.length - 1; i >= 0; i--) {
+            let e = engeller[i];
+            e.y += hiz;
+            ctx.fillStyle = "#ff0055";
+            ctx.shadowColor = "#ff0055";
+            ctx.fillRect(e.x, e.y, e.w, e.h);
+
+            if (oyuncu.x < e.x + e.w && oyuncu.x + oyuncu.w > e.x && oyuncu.y < e.y + e.h && oyuncu.y + oyuncu.h > e.y) {
+                oyunBitti();
+                return;
+            }
+            if (e.y > canvas.height) {
+                engeller.splice(i, 1);
+                skor += 10;
+                skorEl.innerText = skor;
+                // Hız artışı çok daha yumuşak hale getirildi
+                if (skor % 150 === 0 && hiz < 5.5) hiz += 0.25;
+            }
+        }
+
+        for (let i = oduller.length - 1; i >= 0; i--) {
+            let o = oduller[i];
+            o.y += hiz;
+            ctx.beginPath();
+            ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+            ctx.fillStyle = "#facc15";
+            ctx.shadowColor = "#facc15";
+            ctx.fill();
+
+            if (oyuncu.x < o.x + o.r && oyuncu.x + oyuncu.w > o.x - o.r && oyuncu.y < o.y + o.r && oyuncu.y + oyuncu.h > o.y - o.r) {
+                oduller.splice(i, 1);
+                skor += 50;
+                skorEl.innerText = skor;
+            } else if (o.y > canvas.height) {
+                oduller.splice(i, 1);
+            }
+        }
+
+        requestAnimationFrame(dongu);
+    }
+</script>
+</body>
+</html>
